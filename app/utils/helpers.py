@@ -7,6 +7,8 @@ def safe_get(data: Any, *keys: str, default: Any = None) -> Any:
     """
     Безопасный доступ к вложенным ключам в словаре
     Пример: safe_get(obj, 'a', 'b', 'c', default=[])
+    
+    Возвращает значение как есть, без преобразования в строку.
     """
     current = data
     for key in keys:
@@ -16,7 +18,7 @@ def safe_get(data: Any, *keys: str, default: Any = None) -> Any:
                 return default
         else:
             return default
-    return current.strip() if isinstance(current, str) else current
+    return current
 
 
 def parse_iso_date(val: Optional[str]) -> Optional[datetime]:

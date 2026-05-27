@@ -5,33 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.tender import Tender, Lot
+from app.utils.helpers import safe_get, parse_iso_date
 
 logger = logging.getLogger(__name__)
 
 
-def safe_get(data: dict, *keys, default=None):
-    """Безопасный доступ к вложенным ключам без выброса KeyError"""
-    current = data
-    for key in keys:
-        if isinstance(current, dict):
-            current = current.get(key)
-            if current is None:
-                return default
-        else:
-            return default
-    return current
-
-
 def parse_dt(val: Optional[str]) -> Optional[datetime]:
     """Безопасный парсинг дат из ЕИС (поддержка +03:00, Z, null)."""
-    if not val:
-        return None
-    try:
-        val = val.strip().replace("Z", "+00:00")
-        return datetime.fromisoformat(val)
-    except (ValueError, TypeError, AttributeError):
-        logger.warning("Невалидная дата при парсинге: %s", val)
-        return None
+    return parse_iso_date(val)
 
 
 async def upsert_lots(session: AsyncSession, tender_id: int, lots_raw: list[dict]) -> None:
@@ -69,7 +50,7 @@ async def upsert_lots(session: AsyncSession, tender_id: int, lots_raw: list[dict
 
 
 async def upsert_tender(session: AsyncSession, raw_json: dict) -> Tender:
-    """Идемпотентное сохранение/обновление тендера"""
+    """Идемпотентное сохранение/обновление тендера с использованием RETURNING"""
     purchase_number = (raw_json.get("purchaseNumber") or "").strip()
     if not purchase_number:
         raise ValueError("Отсутствует обязательное поле purchaseNumber")
@@ -99,13 +80,10 @@ async def upsert_tender(session: AsyncSession, raw_json: dict) -> Tender:
     stmt = stmt.on_conflict_do_update(
         index_elements=["purchase_number"],
         set_={k: stmt.excluded[k] for k in tender_dict if k != "purchase_number"}
-    )
-    await session.execute(stmt)
-    await session.flush()
-
-    tender = (await session.execute(
-        select(Tender).where(Tender.purchase_number == purchase_number)
-    )).scalar_one()
+    ).returning(Tender)
+    
+    result = await session.execute(stmt)
+    tender = result.scalar_one()
 
     await upsert_lots(session, tender.id, lots_raw)
     logger.info("Успешно сохранён/обновлён тендер %s, лотов: %d", purchase_number, len(lots_raw))

@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.tender import Tender
+from app.schemas.tender import TenderOut
 
 
 async def search_tenders(
@@ -74,12 +75,11 @@ async def search_tenders(
     tenders = (await session.execute(results_query)).scalars().all()
     
    
+    # Валидируем через Pydantic схему вместо __dict__
     results = []
     for t in tenders:
-        item = t.__dict__.copy()
-        item.pop("search_vector", None)  
-        item.pop("_sa_instance_state", None)
-        results.append(item)
+        validated = TenderOut.model_validate(t)
+        results.append(validated.model_dump())
     
     return results, total
 
@@ -95,7 +95,6 @@ async def get_tender_by_purchase_number(
     tender = result.scalar_one_or_none()
     if tender is None:
         return None
-    item = tender.__dict__.copy()
-    item.pop("search_vector", None)
-    item.pop("_sa_instance_state", None)
-    return item
+    # Валидируем через Pydantic схему вместо __dict__
+    validated = TenderOut.model_validate(tender)
+    return validated.model_dump()

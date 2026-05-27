@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.models.tender_detail import TenderDetail
 from app.schemas.tender_detail import TenderDetailSchema
 from app.utils.json_cleaner import clean_json_payload
+from app.utils.helpers import safe_get
 
 logger = logging.getLogger("app.ingest_detail")
 
@@ -61,14 +62,6 @@ async def upsert_tender_details(session: AsyncSession, raw_items: List[dict]) ->
         }
     )
     await session.execute(stmt)
-    await session.commit()
+    # commit выполняется на уровне запроса в get_db (Unit of Work)
     logger.info("Сохранено/обновлено %d детальных закупок.", len(records))
     return len(records)
-
-def safe_get(d: dict, *keys: str, default: str = "UNKNOWN") -> str:
-    """Хелпер для логирования (локальный, чтобы не тянуть зависимость)."""
-    cur = d
-    for k in keys:
-        if not isinstance(cur, dict): return default
-        cur = cur.get(k, default)
-    return str(cur).strip() or default
