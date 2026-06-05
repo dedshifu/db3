@@ -1,0 +1,9 @@
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "dbname": "postgres",
+    "user": "postgres",
+    "password": "23122009"
+}
+
+TARGET_DB = "bids_db"
